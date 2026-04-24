@@ -1,6 +1,6 @@
 # GrammarComposer
 
-> Sistema de composição algorítmica em Python para geração de partituras contemporâneas com cadeias de Markov, quiálteras complexas, técnicas estendidas e notação proporcional.
+> Sistema de composição algorítmica em Python para geração de partituras contemporâneas baseado em Gramática Generativa, quiálteras complexas, técnicas estendidas e notação proporcional.
 
 **Desenvolvido por Prof. Ivan Eiji Simurra — NICS/UNICAMP**
 
@@ -8,7 +8,7 @@
 
 ## Visão geral
 
-O GrammarComposer é uma ferramenta de pesquisa e composição que combina algoritmos estocásticos com notação musical contemporânea de alta qualidade. O sistema gera partituras completas em formato LilyPond/PDF a partir de parâmetros musicais configuráveis, integrando referências estéticas de Feldman, Ferneyhough, Ligeti, Lachenmann e Sciarrino.
+O GrammarComposer é uma ferramenta de pesquisa e composição que combina algoritmos estocásticos com notação musical contemporânea. O sistema gera partituras em formato LilyPond/PDF a partir de parâmetros musicais configuráveis, integrando referências estéticas de Feldman, Ferneyhough, Ligeti, Lachenmann e Sciarrino.
 
 ```
 CompositionEngine (Markov)
