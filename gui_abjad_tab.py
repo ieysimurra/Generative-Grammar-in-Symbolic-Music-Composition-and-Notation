@@ -25,6 +25,11 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
+try:
+    from musicxml_export import save_musicxml, open_in_musescore as _ms_open
+    _MUSICXML_EXPORT_AVAILABLE = True
+except ImportError:
+    _MUSICXML_EXPORT_AVAILABLE = False
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -123,6 +128,7 @@ class AbjadTab:
         self._build_proportional_section(inner)
         self._build_contemporary_section(inner)
         self._build_tuplet_section(inner)      # Etapa 6
+        self._build_rest_section(inner)        # Etapa 6b — Pausas
         self._build_grand_staff_section(inner) # Etapa 7
         self._build_instruments_section(inner)
         self._build_actions_section(inner)
@@ -222,8 +228,13 @@ class AbjadTab:
         self._var_tuplet_complexity = tk.IntVar(value=1)
         frm_levels = ttk.Frame(frm)
         frm_levels.grid(row=1,column=1,columnspan=2,padx=5,pady=3,sticky=tk.W)
-        level_descs = ["1 – Tercinas","2 – Quintinas","3 – Septinas",
-                       "4 – 7:8 irregular","5 – Ferneyhough (11:8)"]
+        level_descs = [
+            "1 – Tercinas  (3:2)",
+            "2 – Quintinas  (3:2, 5:4)",
+            "3 – Sétimas  (3:2, 4:3, 5:4, 6:4, 7:4)",
+            "4 – Irregular  (+ 5:3, 7:6, 9:8)",
+            "5 – Ferneyhough  (+ 8:6, 11:4, 11:8, 13:8)",
+        ]
         for i, desc in enumerate(level_descs):
             ttk.Radiobutton(frm_levels, text=desc,
                             variable=self._var_tuplet_complexity,
@@ -238,6 +249,114 @@ class AbjadTab:
         self._lbl_nesting.grid(row=7,column=2,padx=3)
         self._scl_nesting.configure(
             command=lambda v: self._lbl_nesting.configure(text=f"{float(v):.2f}"))
+
+        # ── Pool de quiálteras ──────────────────────────────────────────
+        ttk.Separator(frm, orient=tk.HORIZONTAL).grid(
+            row=8, column=0, columnspan=3, sticky=tk.EW, padx=5, pady=6)
+
+        ttk.Label(frm, text="Pool de ratios:",
+                  font=("", 9, "bold")).grid(row=9, column=0, padx=5, pady=2, sticky=tk.W)
+        ttk.Label(frm, text="(deixe vazio para usar o nível acima)",
+                  foreground="gray").grid(row=9, column=1, columnspan=2, padx=5, sticky=tk.W)
+
+        # Checkbuttons para cada ratio disponível
+        self._pool_vars = {}
+        ALL_RATIOS = [
+            (3,2,"3:2  tercina"),
+            (4,3,"4:3  quartina"),
+            (5,3,"5:3  quintina/colch."),
+            (5,4,"5:4  quintina"),
+            (5,6,"5:6  quint. expandida"),
+            (6,4,"6:4  sêxtupla"),
+            (7,4,"7:4  sétima"),
+            (7,6,"7:6  sétima/colch."),
+            (7,8,"7:8  sétima expand."),
+            (8,6,"8:6  óctupla"),
+            (9,4,"9:4  nônupla"),
+            (9,8,"9:8  nônupla/colch."),
+            (10,8,"10:8 décupla"),
+            (11,4,"11:4 onzena"),
+            (11,8,"11:8 onzena/colch."),
+            (12,8,"12:8 duodécupla"),
+            (13,8,"13:8 terzadécima"),
+        ]
+        frm_pool = ttk.Frame(frm)
+        frm_pool.grid(row=10, column=0, columnspan=3, padx=5, pady=2, sticky=tk.W)
+        for col_idx, (num, den, label) in enumerate(ALL_RATIOS):
+            var = tk.BooleanVar(value=False)
+            self._pool_vars[(num, den)] = var
+            row_i  = col_idx // 3
+            col_i  = col_idx % 3
+            ttk.Checkbutton(frm_pool, text=label, variable=var).grid(
+                row=row_i, column=col_i, padx=8, pady=1, sticky=tk.W)
+
+        # Pesos relativos
+        ttk.Label(frm, text="Pesos (opcional):").grid(
+            row=11, column=0, padx=5, pady=3, sticky=tk.W)
+        self._ent_weights = ttk.Entry(frm, width=45)
+        self._ent_weights.grid(row=11, column=1, columnspan=2, padx=5, pady=3, sticky=tk.W)
+        self._ent_weights.insert(0, "ex: 3:2=5, 5:4=3, 7:4=2, 13:8=1")
+        self._ent_weights.bind("<FocusIn>", self._on_weights_focus)
+
+        # Pool do aninhamento
+        ttk.Label(frm, text="Pool interno:").grid(
+            row=12, column=0, padx=5, pady=3, sticky=tk.W)
+        self._ent_nest_pool = ttk.Entry(frm, width=45)
+        self._ent_nest_pool.grid(row=12, column=1, columnspan=2, padx=5, pady=3, sticky=tk.W)
+        self._ent_nest_pool.insert(0, "ex: 3:2, 4:3, 5:4  (vazio = automático)")
+        self._ent_nest_pool.bind("<FocusIn>", self._on_nest_pool_focus)
+
+    # ------------------------------------------------------------------
+    # Etapa 6b — Seção de Pausas
+    # ------------------------------------------------------------------
+
+    def _build_rest_section(self, parent):
+        frm = ttk.LabelFrame(parent, text="Pausas")
+        frm.pack(fill=tk.X, padx=10, pady=5)
+
+        # Probabilidade de pausa
+        ttk.Label(frm, text="Probabilidade:").grid(row=0, column=0, padx=5, pady=3, sticky=tk.W)
+        self._scl_rest = ttk.Scale(frm, from_=0.0, to=1.0, value=0.0,
+                                    length=180, orient=tk.HORIZONTAL)
+        self._scl_rest.grid(row=0, column=1, padx=5, pady=3)
+        self._lbl_rest = ttk.Label(frm, text="0.00", width=4)
+        self._lbl_rest.grid(row=0, column=2, padx=3)
+        self._scl_rest.configure(
+            command=lambda v: self._lbl_rest.configure(text=f"{float(v):.2f}"))
+
+        # Modo de distribuição
+        ttk.Label(frm, text="Modo:").grid(row=1, column=0, padx=5, pady=3, sticky=tk.W)
+        self._var_rest_mode = tk.StringVar(value="uniform")
+        frm_modes = ttk.Frame(frm)
+        frm_modes.grid(row=1, column=1, columnspan=2, padx=5, pady=2, sticky=tk.W)
+        modes = [
+            ("uniform", "Uniforme — pausas distribuídas aleatoriamente"),
+            ("phrase",  "Frase — pausas ao fim de frases"),
+            ("breath",  "Respiração — pausas após notas longas"),
+            ("sparse",  "Esparso — pausas longas e raras (Feldman)"),
+        ]
+        for val, label in modes:
+            ttk.Radiobutton(frm_modes, text=label,
+                            variable=self._var_rest_mode,
+                            value=val).pack(anchor=tk.W)
+
+        # Duração máxima (modo sparse)
+        ttk.Label(frm, text="Dur. máx. (beats):").grid(row=6, column=0, padx=5, pady=3, sticky=tk.W)
+        self._spin_rest_max = ttk.Spinbox(frm, from_=0.0, to=8.0,
+                                           increment=0.5, width=6)
+        self._spin_rest_max.set("1.5")
+        self._spin_rest_max.grid(row=6, column=1, padx=5, pady=3, sticky=tk.W)
+        ttk.Label(frm, text="(0 = livre; só modo Esparso)").grid(
+            row=6, column=2, padx=3, sticky=tk.W)
+
+        # Comprimento de frase (modo phrase)
+        ttk.Label(frm, text="Compr. de frase:").grid(row=7, column=0, padx=5, pady=3, sticky=tk.W)
+        self._spin_rest_phrase = ttk.Spinbox(frm, from_=2, to=32,
+                                              increment=1, width=6)
+        self._spin_rest_phrase.set("6")
+        self._spin_rest_phrase.grid(row=7, column=1, padx=5, pady=3, sticky=tk.W)
+        ttk.Label(frm, text="notas  (só modo Frase)").grid(
+            row=7, column=2, padx=3, sticky=tk.W)
 
     # ------------------------------------------------------------------
     # Etapa 7 — Seção Grand Staff
@@ -331,6 +450,9 @@ class AbjadTab:
         self._btn_open_pdf = ttk.Button(btn_row, text="Abrir PDF",
                                          state=tk.DISABLED, command=self._open_pdf)
         self._btn_open_pdf.pack(side=tk.LEFT, padx=4)
+        self._btn_open_ms = ttk.Button(btn_row, text="🎼 MuseScore",
+                                        state=tk.DISABLED, command=self._open_musescore)
+        self._btn_open_ms.pack(side=tk.LEFT, padx=4)
 
         self._btn_open_folder = ttk.Button(btn_row, text="📁 Pasta",
                                             state=tk.DISABLED, command=self._open_folder)
@@ -439,6 +561,54 @@ class AbjadTab:
         if p: self._var_out_dir.set(p)
 
     # ------------------------------------------------------------------
+    # Helpers — Pool de quiálteras e pausas
+    # ------------------------------------------------------------------
+
+    def _on_weights_focus(self, event):
+        """Limpa placeholder na primeira edição."""
+        if self._ent_weights.get().startswith("ex:"):
+            self._ent_weights.delete(0, tk.END)
+
+    def _on_nest_pool_focus(self, event):
+        txt = self._ent_nest_pool.get()
+        if txt.startswith("ex:") or "vazio" in txt:
+            self._ent_nest_pool.delete(0, tk.END)
+
+    def _parse_tuplet_pool(self):
+        """Retorna lista de (num,den) marcados, ou None (usa preset)."""
+        pool = [(num, den) for (num, den), var in self._pool_vars.items()
+                if var.get()]
+        return pool if pool else None
+
+    def _parse_tuplet_weights(self):
+        """
+        Analisa '3:2=5, 5:4=3, 7:4=2'.
+        Retorna dict {(num,den): float} ou None.
+        """
+        import re
+        raw = self._ent_weights.get().strip()
+        if not raw or raw.startswith("ex:"):
+            return None
+        weights = {}
+        for m in re.finditer(r"(\d+):(\d+)\s*=\s*([\d.]+)", raw):
+            weights[(int(m.group(1)), int(m.group(2)))] = float(m.group(3))
+        return weights if weights else None
+
+    def _parse_nest_pool(self):
+        """
+        Analisa '3:2, 4:3, 5:4'.
+        Retorna lista de (num,den) ou None.
+        """
+        import re
+        raw = self._ent_nest_pool.get().strip()
+        if not raw or raw.startswith("ex:") or "vazio" in raw:
+            return None
+        pool = []
+        for m in re.finditer(r"(\d+):(\d+)", raw):
+            pool.append((int(m.group(1)), int(m.group(2))))
+        return pool if pool else None
+
+    # ------------------------------------------------------------------
     # Geração
     # ------------------------------------------------------------------
 
@@ -499,10 +669,24 @@ class AbjadTab:
                 self._log_write("Nenhum instrumento selecionado.\n")
                 return
 
+            # Lê pool e pausas ANTES do log (evita UnboundLocalError)
+            custom_pool    = self._parse_tuplet_pool()
+            custom_weights = self._parse_tuplet_weights()
+            custom_nest    = self._parse_nest_pool()
+            rest_prob   = float(self._scl_rest.get())
+            rest_mode   = self._var_rest_mode.get()
+            try:    rest_max = float(self._spin_rest_max.get())
+            except: rest_max = 0.0
+            try:    rest_phrase = int(self._spin_rest_phrase.get())
+            except: rest_phrase = 6
+
+            pool_info = (f"pool customizado ({len(custom_pool)} ratios)"
+                         if custom_pool else f"preset nível {tuplet_level}")
             self._log_write(
                 f"Instrumentos: {', '.join(instruments)}\n"
-                f"Tuplas: prob={tuplet_prob:.2f} nível={tuplet_level} "
+                f"Tuplas: prob={tuplet_prob:.2f}  {pool_info}  "
                 f"aninhamento={nesting_prob:.2f}\n"
+                f"Pausas: prob={rest_prob:.2f}  modo={rest_mode}\n"
                 f"Grand staff: split={split_midi} histerese={hys}\n"
             )
 
@@ -517,6 +701,21 @@ class AbjadTab:
             adapter.tuplet_probability    = tuplet_prob
             adapter.tuplet_complexity     = tuplet_level
             adapter.tuplet_nesting_prob   = nesting_prob
+
+            # Pool de quiálteras
+            if custom_pool is not None:
+                adapter.tuplet_pool    = custom_pool
+            if custom_weights is not None:
+                adapter.tuplet_weights = custom_weights
+            if custom_nest is not None:
+                adapter.nest_pool      = custom_nest
+
+            # Pausas
+            adapter.rest_probability   = rest_prob
+            adapter.rest_mode          = rest_mode
+            adapter.rest_max_duration  = rest_max
+            adapter.rest_phrase_length = rest_phrase
+
             adapter.piano_split_midi      = split_midi
             adapter.piano_split_hysteresis = hys
             adapter.paper_size            = paper
@@ -657,7 +856,10 @@ class AbjadTab:
 
             self._last_ly_path  = result.get("ly")
             self._last_pdf_path = result.get("pdf")
+            self._last_sequences = result.get("sequences")
+            self._last_gen_title = title
             self._last_png_path = result.get("png")
+            self._out_dir_last  = out_dir
 
             if self._last_ly_path:  self._log_write(f".ly: {self._last_ly_path}\n")
             if self._last_pdf_path: self._log_write(f"PDF: {self._last_pdf_path}\n")
@@ -684,10 +886,12 @@ class AbjadTab:
 
         has_ly  = bool(self._last_ly_path  and os.path.exists(self._last_ly_path))
         has_pdf = bool(self._last_pdf_path and os.path.exists(self._last_pdf_path))
+        has_seqs = bool(getattr(self, "_last_sequences", None))
         has_png = bool(self._last_png_path and os.path.exists(self._last_png_path))
 
         self._btn_open_ly.configure(   state=tk.NORMAL if has_ly  else tk.DISABLED)
         self._btn_open_pdf.configure(  state=tk.NORMAL if has_pdf else tk.DISABLED)
+        self._btn_open_ms.configure(   state=tk.NORMAL if has_seqs else tk.DISABLED)
         self._btn_open_folder.configure(state=tk.NORMAL if (has_ly or has_pdf) else tk.DISABLED)
         self._btn_refresh_png.configure(state=tk.NORMAL if has_png else tk.DISABLED)
         self._btn_save_png.configure(   state=tk.NORMAL if has_png else tk.DISABLED)
@@ -779,6 +983,53 @@ class AbjadTab:
         else:
             messagebox.showwarning("PDF não encontrado",
                 "PDF não gerado. Verifique o LilyPond.")
+
+    def _open_musescore(self):
+        """
+        Exporta as sequências para MusicXML (via musicxml_export.py) e
+        abre no MuseScore. Garante que o MuseScore exibe o mesmo conteúdo
+        que o LilyPond: mesmas notas, durações, dinâmicas, quiálteras,
+        pausas e técnicas estendidas como texto.
+        """
+        seqs = getattr(self, "_last_sequences", None)
+        if not seqs:
+            messagebox.showwarning("Sem partitura",
+                "Gere uma partitura antes de abrir no MuseScore.")
+            return
+
+        if not _MUSICXML_EXPORT_AVAILABLE:
+            messagebox.showerror("Módulo ausente",
+                "musicxml_export.py não encontrado.\n"
+                "Coloque-o na mesma pasta do projeto.")
+            return
+
+        title = getattr(self, "_last_gen_title", "Composição")
+
+        # Exporta para pasta de saída do projeto
+        out_dir = getattr(self, "_out_dir_last", None)
+        if not out_dir:
+            import tempfile
+            out_dir = tempfile.mkdtemp()
+
+        safe = "".join(c if c.isalnum() or c in "-_ " else "_"
+                       for c in title).replace(" ", "_")[:40]
+        filepath = os.path.join(out_dir, f"{safe}_musescore.musicxml")
+
+        self._log_write("Exportando MusicXML para MuseScore…\n")
+
+        path = save_musicxml(
+            seqs,
+            filepath,
+            title=title,
+            composer_name="GrammarComposer",
+        )
+
+        if not path:
+            messagebox.showerror("Erro", "Falha ao gerar MusicXML.")
+            return
+
+        self._log_write(f"MusicXML: {path}\n")
+        self._open_file(path)
 
     def _open_folder(self):
         path = self._last_pdf_path or self._last_ly_path

@@ -134,13 +134,144 @@ INSTRUMENT_FAMILY: dict = {
 }
 
 # Ratios de tupla por nível de complexidade
-TUPLET_RATIOS = [
-    (3, 2),    # nivel 1: tercina  — 3 notas no espaço de 2
-    (5, 4),    # nivel 2: quintina — 5 no espaço de 4
-    (7, 4),    # nivel 3: sétima   — 7 no espaço de 4
-    (7, 8),    # nivel 4: sétima de colcheia
-    (11, 8),   # nivel 5: onzena (estilo Ferneyhough)
-]
+# ─── Pool de quiálteras disponíveis ──────────────────────────────────────────
+#
+# TUPLET_RATIOS_PRESETS: pools pré-definidos por nível de complexidade estética.
+# O usuário pode usar tuplet_complexity (1-5) para selecionar um preset,
+# ou definir tuplet_pool diretamente com qualquer subconjunto de ratios.
+#
+# Ratios suportados (todos com configs limpas — inner_dur representável):
+#   (3,2)  tercina         (4,3)  quartina       (5,3)  quint./colch.
+#   (5,4)  quintina        (5,6)  quint.expand.  (6,4)  sêxtupla
+#   (7,4)  sétima          (7,6)  sét./colch.    (7,8)  sét.expand.
+#   (8,6)  óctupla/colch.  (9,4)  nônupla        (9,8)  nôn./colch.
+#  (10,8)  décupla/colch. (11,4)  onzena        (11,8)  onz./colch.
+#  (12,8)  duodécupla     (13,8)  terzadécima (Ferneyhough extremo)
+
+TUPLET_RATIOS_PRESETS: dict = {
+    1: [(3, 2)],
+    2: [(3, 2), (5, 4)],
+    3: [(3, 2), (4, 3), (5, 4), (6, 4), (7, 4)],
+    4: [(3, 2), (4, 3), (5, 4), (5, 3), (6, 4), (7, 4), (7, 6), (9, 8)],
+    5: [(3, 2), (4, 3), (5, 4), (5, 3), (6, 4), (7, 4), (7, 6),
+        (8, 6), (9, 8), (11, 4), (11, 8), (13, 8)],
+}
+
+# Mantido por compatibilidade com código que usa TUPLET_RATIOS diretamente.
+TUPLET_RATIOS = TUPLET_RATIOS_PRESETS[5]
+
+# CLEAN_TUPLET_CONFIGS: para cada ratio (num, den), lista de (total_outer, inner_dur)
+# onde inner_dur é sempre uma duração musical padrão (sem ties automáticos).
+# Invariante: num × inner_dur × (den/num) = total_outer  ✓
+# Ordenados por total_outer crescente.
+CLEAN_TUPLET_CONFIGS: dict = {
+    (3, 2): [
+        (_Frac(1,4), _Frac(1,8)),   # \tuplet 3/2 { 3×fusa }          → 0.25b
+        (_Frac(1,2), _Frac(1,4)),   # \tuplet 3/2 { 3×semicolcheia }  → 0.50b
+        (_Frac(3,4), _Frac(3,8)),   # \tuplet 3/2 { 3×sc.pont. }      → 0.75b
+        (_Frac(1,1), _Frac(1,2)),   # \tuplet 3/2 { 3×colcheia }      → 1.00b
+        (_Frac(3,2), _Frac(3,4)),   # \tuplet 3/2 { 3×col.pont. }     → 1.50b
+        (_Frac(2,1), _Frac(1,1)),   # \tuplet 3/2 { 3×semínima }      → 2.00b
+    ],
+    (4, 3): [
+        (_Frac(3,8), _Frac(1,8)),   # \tuplet 4/3 { 4×fusa }          → 0.375b
+        (_Frac(3,4), _Frac(1,4)),   # \tuplet 4/3 { 4×semicolcheia }  → 0.75b
+        (_Frac(9,8), _Frac(3,8)),   # \tuplet 4/3 { 4×sc.pont. }      → 1.125b
+        (_Frac(3,2), _Frac(1,2)),   # \tuplet 4/3 { 4×colcheia }      → 1.50b
+        (_Frac(9,4), _Frac(3,4)),   # \tuplet 4/3 { 4×col.pont. }     → 2.25b
+        (_Frac(3,1), _Frac(1,1)),   # \tuplet 4/3 { 4×semínima }      → 3.00b
+    ],
+    (5, 3): [
+        (_Frac(3,8), _Frac(1,8)),   # \tuplet 5/3 { 5×fusa }          → 0.375b
+        (_Frac(3,4), _Frac(1,4)),   # \tuplet 5/3 { 5×semicolcheia }  → 0.75b
+        (_Frac(9,8), _Frac(3,8)),   # \tuplet 5/3 { 5×sc.pont. }      → 1.125b
+        (_Frac(3,2), _Frac(1,2)),   # \tuplet 5/3 { 5×colcheia }      → 1.50b
+        (_Frac(9,4), _Frac(3,4)),   # \tuplet 5/3 { 5×col.pont. }     → 2.25b
+    ],
+    (5, 4): [
+        (_Frac(1,2), _Frac(1,8)),   # \tuplet 5/4 { 5×fusa }          → 0.50b
+        (_Frac(1,1), _Frac(1,4)),   # \tuplet 5/4 { 5×semicolcheia }  → 1.00b
+        (_Frac(3,2), _Frac(3,8)),   # \tuplet 5/4 { 5×sc.pont. }      → 1.50b
+        (_Frac(2,1), _Frac(1,2)),   # \tuplet 5/4 { 5×colcheia }      → 2.00b
+        (_Frac(3,1), _Frac(3,4)),   # \tuplet 5/4 { 5×col.pont. }     → 3.00b
+    ],
+    (5, 6): [
+        (_Frac(3,4), _Frac(1,8)),   # \tuplet 5/6 { 5×fusa }          → 0.75b
+        (_Frac(3,2), _Frac(1,4)),   # \tuplet 5/6 { 5×semicolcheia }  → 1.50b
+        (_Frac(9,4), _Frac(3,8)),   # \tuplet 5/6 { 5×sc.pont. }      → 2.25b
+        (_Frac(3,1), _Frac(1,2)),   # \tuplet 5/6 { 5×colcheia }      → 3.00b
+    ],
+    (6, 4): [
+        (_Frac(1,2), _Frac(1,8)),   # \tuplet 6/4 { 6×fusa }          → 0.50b
+        (_Frac(1,1), _Frac(1,4)),   # \tuplet 6/4 { 6×semicolcheia }  → 1.00b
+        (_Frac(3,2), _Frac(3,8)),   # \tuplet 6/4 { 6×sc.pont. }      → 1.50b
+        (_Frac(2,1), _Frac(1,2)),   # \tuplet 6/4 { 6×colcheia }      → 2.00b
+        (_Frac(3,1), _Frac(3,4)),   # \tuplet 6/4 { 6×col.pont. }     → 3.00b
+    ],
+    (7, 4): [
+        (_Frac(1,2), _Frac(1,8)),   # \tuplet 7/4 { 7×fusa }          → 0.50b
+        (_Frac(1,1), _Frac(1,4)),   # \tuplet 7/4 { 7×semicolcheia }  → 1.00b
+        (_Frac(3,2), _Frac(3,8)),   # \tuplet 7/4 { 7×sc.pont. }      → 1.50b
+        (_Frac(2,1), _Frac(1,2)),   # \tuplet 7/4 { 7×colcheia }      → 2.00b
+        (_Frac(3,1), _Frac(3,4)),   # \tuplet 7/4 { 7×col.pont. }     → 3.00b
+    ],
+    (7, 6): [
+        (_Frac(3,4), _Frac(1,8)),   # \tuplet 7/6 { 7×fusa }          → 0.75b
+        (_Frac(3,2), _Frac(1,4)),   # \tuplet 7/6 { 7×semicolcheia }  → 1.50b
+        (_Frac(9,4), _Frac(3,8)),   # \tuplet 7/6 { 7×sc.pont. }      → 2.25b
+        (_Frac(3,1), _Frac(1,2)),   # \tuplet 7/6 { 7×colcheia }      → 3.00b
+    ],
+    (7, 8): [
+        (_Frac(1,1), _Frac(1,8)),   # \tuplet 7/8 { 7×fusa }          → 1.00b
+        (_Frac(2,1), _Frac(1,4)),   # \tuplet 7/8 { 7×semicolcheia }  → 2.00b
+        (_Frac(3,1), _Frac(3,8)),   # \tuplet 7/8 { 7×sc.pont. }      → 3.00b
+    ],
+    (8, 6): [
+        (_Frac(3,4), _Frac(1,8)),   # \tuplet 8/6 { 8×fusa }          → 0.75b
+        (_Frac(3,2), _Frac(1,4)),   # \tuplet 8/6 { 8×semicolcheia }  → 1.50b
+        (_Frac(9,4), _Frac(3,8)),   # \tuplet 8/6 { 8×sc.pont. }      → 2.25b
+        (_Frac(3,1), _Frac(1,2)),   # \tuplet 8/6 { 8×colcheia }      → 3.00b
+    ],
+    (9, 4): [
+        (_Frac(1,2), _Frac(1,8)),   # \tuplet 9/4 { 9×fusa }          → 0.50b
+        (_Frac(1,1), _Frac(1,4)),   # \tuplet 9/4 { 9×semicolcheia }  → 1.00b
+        (_Frac(3,2), _Frac(3,8)),   # \tuplet 9/4 { 9×sc.pont. }      → 1.50b
+        (_Frac(2,1), _Frac(1,2)),   # \tuplet 9/4 { 9×colcheia }      → 2.00b
+        (_Frac(3,1), _Frac(3,4)),   # \tuplet 9/4 { 9×col.pont. }     → 3.00b
+    ],
+    (9, 8): [
+        (_Frac(1,1), _Frac(1,8)),   # \tuplet 9/8 { 9×fusa }          → 1.00b
+        (_Frac(2,1), _Frac(1,4)),   # \tuplet 9/8 { 9×semicolcheia }  → 2.00b
+        (_Frac(3,1), _Frac(3,8)),   # \tuplet 9/8 { 9×sc.pont. }      → 3.00b
+    ],
+    (10, 8): [
+        (_Frac(1,1), _Frac(1,8)),   # \tuplet 10/8 { 10×fusa }        → 1.00b
+        (_Frac(2,1), _Frac(1,4)),   # \tuplet 10/8 { 10×semicolcheia }→ 2.00b
+        (_Frac(3,1), _Frac(3,8)),   # \tuplet 10/8 { 10×sc.pont. }    → 3.00b
+    ],
+    (11, 4): [
+        (_Frac(1,2), _Frac(1,8)),   # \tuplet 11/4 { 11×fusa }        → 0.50b
+        (_Frac(1,1), _Frac(1,4)),   # \tuplet 11/4 { 11×semicolcheia }→ 1.00b
+        (_Frac(3,2), _Frac(3,8)),   # \tuplet 11/4 { 11×sc.pont. }    → 1.50b
+        (_Frac(2,1), _Frac(1,2)),   # \tuplet 11/4 { 11×colcheia }    → 2.00b
+        (_Frac(3,1), _Frac(3,4)),   # \tuplet 11/4 { 11×col.pont. }   → 3.00b
+    ],
+    (11, 8): [
+        (_Frac(1,1), _Frac(1,8)),   # \tuplet 11/8 { 11×fusa }        → 1.00b
+        (_Frac(2,1), _Frac(1,4)),   # \tuplet 11/8 { 11×semicolcheia }→ 2.00b
+        (_Frac(3,1), _Frac(3,8)),   # \tuplet 11/8 { 11×sc.pont. }    → 3.00b
+    ],
+    (12, 8): [
+        (_Frac(1,1), _Frac(1,8)),   # \tuplet 12/8 { 12×fusa }        → 1.00b
+        (_Frac(2,1), _Frac(1,4)),   # \tuplet 12/8 { 12×semicolcheia }→ 2.00b
+        (_Frac(3,1), _Frac(3,8)),   # \tuplet 12/8 { 12×sc.pont. }    → 3.00b
+    ],
+    (13, 8): [
+        (_Frac(1,1), _Frac(1,8)),   # \tuplet 13/8 { 13×fusa }        → 1.00b
+        (_Frac(2,1), _Frac(1,4)),   # \tuplet 13/8 { 13×semicolcheia }→ 2.00b
+        (_Frac(3,1), _Frac(3,8)),   # \tuplet 13/8 { 13×sc.pont. }    → 3.00b
+    ],
+}
 
 def _make_tuplet_group(
     note_data: list,
@@ -213,9 +344,34 @@ class GrammarAbjadAdapter:
         self.microtone_probability: float   = 0.0
         self.technique_probability: float   = 0.0
         self.glissando_probability: float   = 0.0
-        self.tuplet_probability: float      = 0.0
-        self.tuplet_complexity: int         = 1    # 1–5
-        self.tuplet_nesting_prob: float     = 0.0  # aninhamento Ferneyhough
+        self.tuplet_probability:  float      = 0.0
+        self.tuplet_complexity:   int         = 1    # 1–5 (seleciona preset pool)
+        self.tuplet_nesting_prob: float       = 0.0  # prob. de aninhar quiálteras
+
+        # ── Pool de ratios ──────────────────────────────────────────────────
+        # tuplet_pool: lista explícita de (num,den) disponíveis para sorteio.
+        #   None → usa o preset definido por tuplet_complexity.
+        # tuplet_weights: dict opcional (num,den) → float com pesos relativos.
+        #   None → distribuição uniforme entre os ratios do pool.
+        # nest_pool: ratios elegíveis para a camada interna do aninhamento.
+        #   None → usa os ratios do pool com num <= 5 (ratios mais simples).
+        self.tuplet_pool:    "list | None"   = None
+        self.tuplet_weights: "dict | None"   = None
+        self.nest_pool:      "list | None"   = None
+
+        # ── Pausas ─────────────────────────────────────────────────────────
+        # rest_probability  : fração de notas que se tornam pausas (0.0–1.0)
+        # rest_mode         : estratégia de distribuição
+        #   'uniform' — pausas espalhadas aleatoriamente (texturas, Lachenmann)
+        #   'phrase'  — pausas agrupadas no final de frases (escrita melódica)
+        #   'breath'  — pausas após notas longas (sopros, cordas com arco)
+        #   'sparse'  — pausas longas e raras por compasso (estilo Feldman)
+        # rest_max_duration : duração máxima de uma pausa em beats (0 = livre)
+        # rest_phrase_length: comprimento de frase em notas para o modo 'phrase'
+        self.rest_probability:   float = 0.0
+        self.rest_mode:          str   = 'uniform'
+        self.rest_max_duration:  float = 0.0
+        self.rest_phrase_length: int   = 6
 
         # Grand staff
         self.piano_split_midi: int          = 60
@@ -350,15 +506,12 @@ class GrammarAbjadAdapter:
                                    dyn, hp, hp_end))
                 ev_idx += 1
 
+            # ── Injeta pausas (antes do agrupamento em quiálteras) ───────
+            # Substitui pitches por None sem alterar durações → beat-invariant.
+            # Pausas dentro de quiálteras são notação válida em LilyPond.
+            raw_notes = self._inject_rests(raw_notes, measure_beats)
+
             # ── Agrupa notas em quiálteras (stochastic) ─────────────────
-            # Percorre raw_notes e, com probabilidade tuplet_probability,
-            # agrupa N notas consecutivas num TupletGroup.
-            # Restrições:
-            #   • A duração total do grupo deve ser um valor rítmico
-            #     representável (>= semínima, potência-de-2 de colcheia).
-            #   • Mínimo de 2 notas no grupo; máximo = numerador do ratio.
-            #   • Quiálteras aninhadas: se tuplet_nesting_prob > 0, a última
-            #     nota do grupo pode ser substituída por uma quiáltera interna.
             items_to_add = self._group_into_tuplets(
                 raw_notes, inst_id, measure_beats
             )
@@ -367,6 +520,149 @@ class GrammarAbjadAdapter:
 
         return seq
 
+    def _inject_rests(
+        self,
+        raw_notes: list,
+        measure_beats: "_Frac",
+    ) -> list:
+        """
+        Substitui alturas por pausas em raw_notes de acordo com rest_mode.
+
+        O beat-invariant do compasso é SEMPRE preservado: apenas pitch_midi
+        é setado para None; durações são mantidas intactas.
+
+        Modos:
+          'uniform' — cada nota tem independentemente probabilidade
+                      rest_probability de virar pausa. Bom para texturas
+                      esparsas e campos sonoros (Lachenmann, música espectral).
+          'phrase'  — pausas agrupadas ao fim de frases. A cada
+                      rest_phrase_length notas acumuladas, o final do compasso
+                      recebe pausas. Bom para escrita melódica estruturada.
+          'breath'  — pausas após notas longas (>= 0.75 beat). Probabilidade
+                      elevada para notas longas, baixa para curtas. Simula
+                      o fôlego natural de sopros e arco.
+          'sparse'  — no máximo UMA pausa longa por compasso, com duração
+                      controlada por rest_max_duration. Estilo Feldman:
+                      silêncio como elemento estrutural.
+        """
+        if self.rest_probability <= 0.0 or not raw_notes:
+            return raw_notes
+
+        prob  = self.rest_probability
+        mode  = self.rest_mode
+        notes = list(raw_notes)
+
+        def silence(n):
+            """Mantém todos os atributos exceto pitch_midi → None."""
+            return (None, n[1], n[2], n[3], n[4], n[5], n[6], n[7])
+
+        if mode == 'uniform':
+            # Cada nota: probabilidade independente de virar pausa
+            for i, n in enumerate(notes):
+                if n[0] is not None and random.random() < prob:
+                    notes[i] = silence(n)
+
+        elif mode == 'phrase':
+            # Pausas ao final de frases (contador cross-compasso)
+            self._rest_phrase_counter = getattr(self, '_rest_phrase_counter', 0)
+            self._rest_phrase_counter += len(notes)
+            if self._rest_phrase_counter >= self.rest_phrase_length:
+                self._rest_phrase_counter = 0
+                n_rests = max(1, round(len(notes) * prob))
+                for i in range(max(0, len(notes) - n_rests), len(notes)):
+                    notes[i] = silence(notes[i])
+            else:
+                # Fora do ponto de frase: pausa ocasional muito baixa
+                for i, n in enumerate(notes):
+                    if n[0] is not None and random.random() < prob * 0.15:
+                        notes[i] = silence(n)
+
+        elif mode == 'breath':
+            # Pausas preferencialmente após notas longas
+            LONG = 0.75
+            for i in range(len(notes) - 1):  # última nota nunca vira pausa
+                n = notes[i]
+                if n[0] is None:
+                    continue
+                p = prob * 2.0 if float(n[2]) >= LONG else prob * 0.25
+                if random.random() < p:
+                    notes[i] = silence(n)
+
+        elif mode == 'sparse':
+            # Uma pausa longa por compasso, com probabilidade rest_probability
+            if random.random() < prob:
+                pos = random.randint(0, max(0, len(notes) - 1))
+                remaining = sum(
+                    _Frac(n[2]).limit_denominator(32) for n in notes[pos:]
+                )
+                if self.rest_max_duration > 0:
+                    target = min(
+                        _Frac(self.rest_max_duration).limit_denominator(32),
+                        remaining
+                    )
+                else:
+                    # Pausa de 0.5 a 2 beats (ou até o fim do compasso)
+                    max_t = min(remaining, _Frac(2, 1))
+                    target = _Frac(
+                        random.uniform(0.5, max(0.5, float(max_t)))
+                    ).limit_denominator(8)
+
+                accum = _Frac(0)
+                j = pos
+                while j < len(notes) and accum < target - _Frac(1, 32):
+                    accum += _Frac(notes[j][2]).limit_denominator(32)
+                    notes[j] = silence(notes[j])
+                    j += 1
+
+        else:
+            # Fallback: trata como 'uniform'
+            for i, n in enumerate(notes):
+                if n[0] is not None and random.random() < prob:
+                    notes[i] = silence(n)
+
+        return notes
+
+
+    def _resolve_pool(self) -> "list[tuple]":
+        """
+        Retorna o pool de ratios ativo:
+          • Se tuplet_pool foi definido explicitamente, usa-o.
+          • Senão, usa TUPLET_RATIOS_PRESETS[tuplet_complexity].
+        """
+        if self.tuplet_pool is not None:
+            return [tuple(r) for r in self.tuplet_pool]
+        idx = max(1, min(5, self.tuplet_complexity))
+        return list(TUPLET_RATIOS_PRESETS[idx])
+
+    def _resolve_nest_pool(self, outer_pool: list) -> "list[tuple]":
+        """
+        Retorna o pool de ratios para a camada interna do aninhamento.
+          • Se nest_pool foi definido, usa-o.
+          • Senão, usa os ratios do pool com num <= 5 (mais simples).
+            Fallback para (3,2) se nenhum qualifica.
+        """
+        if self.nest_pool is not None:
+            return [tuple(r) for r in self.nest_pool]
+        simple = [r for r in outer_pool if r[0] <= 5]
+        return simple if simple else [(3, 2)]
+
+    def _weighted_choice(self, pool: list) -> tuple:
+        """
+        Sorteia um ratio do pool com pesos opcionais (tuplet_weights).
+        Se tuplet_weights não está definido, distribuição uniforme.
+        """
+        if not self.tuplet_weights:
+            return random.choice(pool)
+        weights = [float(self.tuplet_weights.get(r, 1.0)) for r in pool]
+        total   = sum(weights)
+        r_val   = random.uniform(0, total)
+        accum   = 0.0
+        for ratio, w in zip(pool, weights):
+            accum += w
+            if r_val <= accum:
+                return ratio
+        return pool[-1]
+
     def _group_into_tuplets(
         self,
         raw_notes: list,
@@ -374,168 +670,366 @@ class GrammarAbjadAdapter:
         measure_beats: "_Frac",
     ) -> list:
         """
-        Percorre raw_notes e agrupa estocasticamente em TupletGroups.
+        Agrupa estocasticamente raw_notes em TupletGroups com BEAT-BUDGET EXATO.
 
-        Cada raw_note é uma tupla:
-          (pitch, microtone, dur, technique, glissando, dyn, hp, hp_end)
+        ARQUITETURA CLEAN-ANCHOR + CONSUME-BY-DURATION:
+        ─────────────────────────────────────────────────────────────────
+        1. Decide SE e QUAL quiáltera criar nesta posição.
+        2. Escolhe âncora limpa (total_outer, inner_dur) via CLEAN_TUPLET_CONFIGS:
+             • total_outer ≤ remaining_beats
+             • inner_dur é duração musical padrão (sem ties automáticos)
+        3. Consome raw_notes até que a soma de suas durações originais
+           alcance total_outer (usando _consume_until para alinhamento exato).
+        4. Gera num notas com inner_dur — pitch/técnica da raw_notes consumidas.
+        5. consumed += total_outer → orçamento do compasso preservado.
 
-        INVARIANTE: as durações originais somam exatamente measure_beats.
-        O agrupamento em TupletGroups preserva esse invariante porque:
-          - o TupletGroup "consome" as mesmas durações originais do compasso
-          - apenas a duração escrita interna muda (inner_dur = total_outer / den)
-          - LilyPond compensa com o ratio num/den ao renderizar
+        Para quiálteras ANINHADAS:
+          A quiáltera interna também usa âncora limpa com total <= inner_dur_outer.
+          O número de notas brutas consumidas é calculado para o total combinado.
 
-        Restrição crítica: um grupo só é formado se total_dur dos membros
-        não ultrapassa o budget restante do compasso (remaining_beats).
+        INVARIANTE:
+          sum(sounding_beats(ev) for ev in result) == measure_beats  ✓
         """
-        result = []
-        i = 0
-        # Rastreia beats consumidos (para verificar que não excedemos o compasso)
-        consumed = _Frac(0)
+        result    = []
+        i         = 0
+        consumed  = _Frac(0)
 
         while i < len(raw_notes):
-            note = raw_notes[i]
-            pitch, microtone, dur, tech, gliss, dyn, hp, hp_end = note
-            note_dur = _Frac(dur).limit_denominator(64)
+            note      = raw_notes[i]
+            note_dur  = _Frac(note[2]).limit_denominator(64)
             remaining = measure_beats - consumed
 
-            # Tenta criar quiáltera a partir desta posição
-            can_try_tuplet = (
+            # ── Tenta criar quiáltera ────────────────────────────────────
+            can_try = (
                 self.tuplet_probability > 0
                 and random.random() < self.tuplet_probability
-                and i + 1 < len(raw_notes)   # precisa de ≥ 2 notas
-                and remaining >= _Frac(1, 4)  # mínimo de 1/4 beat restante
+                and remaining >= _Frac(1, 2)
             )
 
-            if can_try_tuplet:
-                ratio = TUPLET_RATIOS[min(self.tuplet_complexity - 1, 4)]
+            if can_try:
+                # ── Seleciona ratio do pool ──────────────────────────
+                active_pool = self._resolve_pool()
+                # Filtra para ratios com ao menos uma âncora limpa que cabe
+                valid_pool = [
+                    r for r in active_pool
+                    if GrammarAbjadAdapter._best_clean_config(r, remaining) is not None
+                ]
+                if not valid_pool:
+                    result.append(self._raw_to_event(note, inst_id))
+                    consumed += note_dur
+                    i += 1
+                    continue
+
+                ratio    = self._weighted_choice(valid_pool)
                 num, den = ratio
 
-                # A quiáltera deve ter EXATAMENTE num notas (o numerador do ratio).
-                # Isso é obrigatório para que a duração sonora seja correta:
-                # sounding = num * inner_dur * den/num = total_outer
-                # Se n_notes != num, a fórmula quebra e o compasso fica errado.
-                n_notes = num
-                if i + n_notes > len(raw_notes):
-                    # Notas insuficientes para completar a quiáltera
+                config = GrammarAbjadAdapter._best_clean_config(ratio, remaining)
+                if config is None:
                     result.append(self._raw_to_event(note, inst_id))
                     consumed += note_dur
                     i += 1
                     continue
 
-                # Verifica que as n_notes notas cabem no budget restante do compasso
-                cand_dur = sum(
-                    _Frac(raw_notes[i + k][2]).limit_denominator(64)
-                    for k in range(n_notes)
+                total_outer, inner_dur = config
+
+                # Determina quantas notas brutas cobrem total_outer
+                k, raw_slice, remainder = GrammarAbjadAdapter._consume_until(
+                    raw_notes, i, total_outer
                 )
-                if cand_dur > remaining + _Frac(1, 128):
-                    # Não cabe — cria nota normal
+                if k is None or k < 2:
                     result.append(self._raw_to_event(note, inst_id))
                     consumed += note_dur
                     i += 1
                     continue
 
-                # Duração mínima do grupo: pelo menos 1 semínima
-                if cand_dur < _Frac(1, 4):
+                # ── Decide: simples ou aninhada ──────────────────────────
+                do_nest = (
+                    self.tuplet_nesting_prob > 0
+                    and random.random() < self.tuplet_nesting_prob
+                    and (self.tuplet_complexity >= 3 or self.tuplet_pool is not None)
+                )
+
+                if do_nest:
+                    tg, _ = self._build_nested_tuplet(
+                        ratio, total_outer, inner_dur,
+                        raw_notes, i, inst_id
+                    )
+                    if tg is None:
+                        do_nest = False
+
+                if not do_nest:
+                    # Gera num notas com inner_dur, usando pitches de raw_slice
+                    # (src repete as notas se raw_slice < num — pitches são fonte, não budget)
+                    src = (raw_slice * ((num // max(len(raw_slice), 1)) + 1))[:num]
+                    tg = self._build_simple_from_slice(
+                        ratio, inner_dur, src, inst_id
+                    )
+
+                # notes_used é SEMPRE k — o número de notas brutas
+                # coberto por total_outer via _consume_until.
+                # O ratio num:den pode ter mais notas que k; elas são geradas
+                # com pitches repetidos de raw_slice, não consumindo raw_notes adicionais.
+                notes_used = k
+
+                if tg is None:
                     result.append(self._raw_to_event(note, inst_id))
                     consumed += note_dur
                     i += 1
                     continue
 
-                group = raw_notes[i:i + n_notes]
-                total_dur = cand_dur
-
-                # Duração ESCRITA de cada nota dentro da quiáltera:
-                # total_sounding / den garante que 	uplet num/den { N * inner_dur }
-                # soa exatamente total_dur beats.
-                # Ex: 3:2 em 1.0 beat → inner = 0.5 (8ª) → 	uplet 3/2 {c8 d8 e8} ✓
-                inner_dur = float(total_dur / den)
-
-                # ── Quiáltera simples ────────────────────────────────────
-                if (self.tuplet_nesting_prob <= 0
-                        or random.random() > self.tuplet_nesting_prob
-                        or n_notes < 4):
-                    inner_data = [
-                        (n[0], n[1], inner_dur, n[3], n[4], n[5], n[6], n[7])
-                        for n in group
-                    ]
-                    tg = _make_tuplet_group(inner_data, ratio, inst_id)
-                    result.append(tg)
-
-                else:
-                    # ── Quiáltera aninhada (estilo Ferneyhough) ──────────
-                    # Para que a quiáltera externa seja válida (num eventos),
-                    # precisamos: (num - 1) notas externas + 1 quiáltera interna.
-                    # A quiáltera interna precisa de in_num notas.
-                    # Total de notas necessárias = (num - 1) + in_num.
-                    inner_ratio = TUPLET_RATIOS[
-                        min(self.tuplet_complexity, len(TUPLET_RATIOS) - 1)
-                    ]
-                    in_num, in_den = inner_ratio
-                    total_needed = (num - 1) + in_num
-
-                    if total_needed > len(raw_notes) - i or total_needed > len(group):
-                        # Não tem notas suficientes → quiáltera simples
-                        inner_data = [
-                            (n[0], n[1], inner_dur, n[3], n[4], n[5], n[6], n[7])
-                            for n in group
-                        ]
-                        tg = _make_tuplet_group(inner_data, ratio, inst_id)
-                        result.append(tg)
-                    else:
-                        # Verifica que total_needed notas cabem no budget
-                        full_group = raw_notes[i:i + total_needed]
-                        full_dur = sum(_Frac(n[2]).limit_denominator(64) for n in full_group)
-                        if full_dur > remaining + _Frac(1, 128):
-                            # Não cabe → quiáltera simples com as notas originais
-                            inner_data = [
-                                (n[0], n[1], inner_dur, n[3], n[4], n[5], n[6], n[7])
-                                for n in group
-                            ]
-                            tg = _make_tuplet_group(inner_data, ratio, inst_id)
-                            result.append(tg)
-                            # Mas ainda consomemos apenas n_notes (= num)!
-                        else:
-                            # Usa total_needed notas (recalcula duração)
-                            total_dur = full_dur
-                            inner_dur = float(total_dur / den)
-                            outer_plain = full_group[:num - 1]
-                            inner_group = full_group[num - 1:]  # = in_num notas
-
-                            in_total = sum(_Frac(n[2]).limit_denominator(64) for n in inner_group)
-                            in_inner_dur = float(in_total / in_den)
-                            nested_data = [
-                                (n[0], n[1], in_inner_dur, n[3], n[4], n[5], n[6], n[7])
-                                for n in inner_group
-                            ]
-                            nested_tg = _make_tuplet_group(nested_data, inner_ratio, inst_id)
-
-                            outer_events = [
-                                self._raw_to_event(
-                                    (n[0], n[1], inner_dur, n[3], n[4], n[5], n[6], n[7]),
-                                    inst_id
-                                )
-                                for n in outer_plain
-                            ]
-                            outer_events.append(nested_tg)
-                            ratio_str = f"{num}:{den}"
-                            tg = TupletGroup(ratio_str, outer_events,
-                                             instrument_id=inst_id)
-                            result.append(tg)
-                            # Corrige n_notes para o total real consumido
-                            n_notes = total_needed
-                            total_dur = full_dur
-
-                consumed += total_dur
-                i += n_notes
+                result.append(tg)
+                consumed += total_outer
+                i += notes_used
+                # Se uma nota foi partida, inserimos o resto de volta na lista
+                if remainder is not None:
+                    raw_notes = list(raw_notes)
+                    raw_notes.insert(i, remainder)
                 continue
 
-            # Nota normal
+            # ── Nota normal ─────────────────────────────────────────────
             result.append(self._raw_to_event(note, inst_id))
             consumed += note_dur
             i += 1
 
         return result
+
+    @staticmethod
+    def _consume_until(raw_notes: list, start: int, target: "_Frac"):
+        """
+        Consome raw_notes[start:] até que a soma de durações ≈ target.
+
+        Retorna (k, slice, remainder) onde:
+          • k         = número de raw_notes originais consumidas
+          • slice     = lista de raw_notes com durações ajustadas (soma == target)
+          • remainder = raw_note com a duração sobrante se a última nota foi
+                        partida no meio, ou None se não houve divisão.
+
+        O chamador deve inserir remainder de volta em raw_notes[start+k:]
+        para que o budget do compasso seja preservado.
+
+        Retorna (None, None, None) se impossível.
+        """
+        target = _Frac(target).limit_denominator(64)
+        accum  = _Frac(0)
+        notes  = raw_notes[start:]
+
+        for j, n in enumerate(notes):
+            dur = _Frac(n[2]).limit_denominator(64)
+            if accum + dur <= target + _Frac(1, 128):
+                accum += dur
+                if abs(accum - target) <= _Frac(1, 128):
+                    return j + 1, list(notes[:j + 1]), None
+            else:
+                needed = target - accum
+                if needed >= _Frac(1, 64):
+                    # Parte a nota: usa 'needed' para o tuplet, devolve o resto
+                    leftover = dur - needed
+                    consumed_note  = (n[0], n[1], float(needed),  n[3], n[4], n[5], n[6], n[7])
+                    remainder_note = (n[0], n[1], float(leftover), n[3], n[4], False, None, False)
+                    return j + 1, list(notes[:j]) + [consumed_note], remainder_note
+                break  # needed too small — cannot split cleanly
+
+        k = len(notes)
+        if k >= 2 and abs(accum - target) <= _Frac(1, 64):
+            return k, list(notes), None
+        return None, None, None
+
+    @staticmethod
+    def _best_clean_config(
+        ratio: tuple,
+        remaining: "_Frac",
+        min_beats: "_Frac" = _Frac(1, 2),
+    ):
+        """
+        Retorna (total_outer, inner_dur) para o ratio,
+        com total_outer ≤ remaining e inner_dur duração musical padrão.
+        Escolhe o maior total_outer válido. Retorna None se impossível.
+        """
+        configs = CLEAN_TUPLET_CONFIGS.get(ratio, [])
+        valid   = [
+            (t, i) for t, i in configs
+            if min_beats <= t <= remaining + _Frac(1, 128)
+        ]
+        return max(valid, key=lambda x: x[0]) if valid else None
+
+    @staticmethod
+    def _build_simple_from_slice(
+        ratio: tuple,
+        inner_dur: "_Frac",
+        src_notes: list,
+        inst_id: str,
+    ) -> "TupletGroup | None":
+        """
+        Cria TupletGroup simples com exatamente num notas de inner_dur.
+        Pitches/técnicas retirados de src_notes (que já tem exatamente num elementos).
+        """
+        num, den = ratio
+        if len(src_notes) < num:
+            return None
+        inner_data = [
+            (n[0], n[1], float(inner_dur), n[3], n[4], n[5], n[6], n[7])
+            for n in src_notes[:num]
+        ]
+        return _make_tuplet_group(inner_data, ratio, inst_id)
+
+
+    @staticmethod
+    def _best_clean_config(
+        ratio: tuple,
+        remaining: "_Frac",
+        min_beats: "_Frac" = _Frac(1, 2),
+    ):
+        """
+        Retorna (total_outer, inner_dur) para o ratio dado,
+        com total_outer ≤ remaining e inner_dur representável.
+        Escolhe o maior total_outer válido (quiáltera "mais cheia").
+        Retorna None se nenhuma configuração cabe.
+        """
+        configs = CLEAN_TUPLET_CONFIGS.get(ratio, [])
+        valid = [
+            (t, i) for t, i in configs
+            if min_beats <= t <= remaining + _Frac(1, 128)
+        ]
+        if not valid:
+            return None
+        return max(valid, key=lambda x: x[0])
+
+    @staticmethod
+    def _exact_clean_config(ratio: tuple, target: "_Frac"):
+        """
+        Retorna (total, inner) onde total == target exato.
+        Usado no aninhamento para garantir que nested_total == inner_dur_outer,
+        o que é necessário para que o sounding da quiáltera externa seja correto.
+        Retorna None se não houver match exato dentro de tolerância 1/128.
+        """
+        configs = CLEAN_TUPLET_CONFIGS.get(ratio, [])
+        tol = _Frac(1, 128)
+        for t, i in configs:
+            if abs(t - target) <= tol:
+                return (t, i)
+        return None
+
+    def _build_simple_tuplet(
+        self,
+        ratio: tuple,
+        total_outer: "_Frac",
+        inner_dur: "_Frac",
+        raw_notes: list,
+        start_idx: int,
+        inst_id: str,
+    ) -> "TupletGroup | None":
+        """
+        Cria um TupletGroup simples com exatamente num notas de inner_dur.
+        Usa as alturas/técnicas das raw_notes a partir de start_idx.
+        Se não há raw_notes suficientes, retorna None.
+        """
+        num, den = ratio
+        if start_idx + num > len(raw_notes):
+            return None
+
+        inner_data = []
+        for k in range(num):
+            n = raw_notes[start_idx + k]
+            inner_data.append((n[0], n[1], float(inner_dur), n[3], n[4], n[5], n[6], n[7]))
+
+        return _make_tuplet_group(inner_data, ratio, inst_id)
+
+    def _build_nested_tuplet(
+        self,
+        outer_ratio: tuple,
+        total_outer: "_Frac",
+        inner_dur_outer: "_Frac",
+        raw_notes: list,
+        start_idx: int,
+        inst_id: str,
+    ) -> "tuple[TupletGroup | None, int]":
+        """
+        Cria uma quiáltera aninhada estilo Ferneyhough:
+
+            \tuplet out_num/out_den {
+                note note ... note        ← (out_num - 1) notas com inner_dur_outer
+                \tuplet 3/2 { note note note }   ← sempre (3,2) internamente
+            }
+
+        A quiáltera interna é SEMPRE (3,2) — produz complexidade Ferneyhough
+        genuína sem exigir dezenas de notas por compasso.
+
+        A quiáltera interna ocupa inner_dur_outer beats sonoros.
+        Suas 3 notas têm inner_dur_nested = inner_dur_outer / 2 (colcheia ou semínima).
+
+        Retorna (tg, notes_used) onde notes_used = k (gerenciado pelo chamador).
+        Se não houver âncora limpa para o nesting, retorna (None, 0).
+        """
+        out_num, out_den = outer_ratio
+
+        # A quiáltera interna é sorteada do nest_pool — não mais fixada em (3,2).
+        # Isso permite, ex., 	uplet 7/4 { ... 	uplet 5/4 { ... } ... }
+        # ou 	uplet 13/8 { ... 	uplet 4/3 { ... } ... }
+        outer_pool  = self._resolve_pool()
+        inner_pool  = self._resolve_nest_pool(outer_pool)
+
+        # Filtra inner_pool para ratios com âncora que cabe em inner_dur_outer
+        valid_inner = [
+            r for r in inner_pool
+            if GrammarAbjadAdapter._best_clean_config(
+                r, inner_dur_outer, min_beats=_Frac(1, 8)) is not None
+        ]
+        if not valid_inner:
+            return None, 0
+
+        inner_ratio = self._weighted_choice(valid_inner)
+        in_num, in_den = inner_ratio
+
+        # Âncora para a quiáltera interna: total deve ser EXATAMENTE inner_dur_outer.
+        # Prova da invariante:
+        #   sounding_outer = [(out_num-1)×inner_dur_outer + nested_total] × out_den/out_num
+        #   Para que sounding_outer = total_outer = out_num × inner_dur_outer:
+        #   nested_total DEVE ser = inner_dur_outer.
+        nested_config = GrammarAbjadAdapter._exact_clean_config(
+            inner_ratio,
+            target=inner_dur_outer,
+        )
+        if nested_config is None:
+            # Não existe config exata para este inner_ratio neste espaço → aborta
+            return None, 0
+
+        nested_total, nested_inner = nested_config
+
+        # Coleta notas brutas: (out_num-1) para a camada externa + 3 para interna
+        # Usa raw_notes com wrap circular se necessário
+        all_notes = raw_notes[start_idx:]
+        total_needed = (out_num - 1) + in_num
+
+        def get_note(j):
+            return all_notes[j % len(all_notes)] if all_notes else raw_notes[start_idx]
+
+        # Notas externas: (out_num - 1) × inner_dur_outer
+        outer_events = [
+            self._raw_to_event(
+                (get_note(k)[0], get_note(k)[1], float(inner_dur_outer),
+                 get_note(k)[3], get_note(k)[4], get_note(k)[5],
+                 get_note(k)[6], get_note(k)[7]),
+                inst_id
+            )
+            for k in range(out_num - 1)
+        ]
+
+        # Quiáltera interna: 3 notas × nested_inner
+        nested_data = [
+            (get_note(out_num - 1 + k)[0], get_note(out_num - 1 + k)[1],
+             float(nested_inner),
+             get_note(out_num - 1 + k)[3], get_note(out_num - 1 + k)[4],
+             get_note(out_num - 1 + k)[5], get_note(out_num - 1 + k)[6],
+             get_note(out_num - 1 + k)[7])
+            for k in range(in_num)
+        ]
+        nested_tg  = _make_tuplet_group(nested_data, inner_ratio, inst_id)
+        outer_events.append(nested_tg)
+
+        ratio_str = f"{out_num}:{out_den}"
+        tg = TupletGroup(ratio_str, outer_events, instrument_id=inst_id)
+        return tg, 0   # notes_used gerenciado pelo chamador (= k)
+
 
     @staticmethod
     def _raw_to_event(raw: tuple, inst_id: str) -> "NoteEvent":
@@ -837,6 +1331,9 @@ class GrammarAbjadAdapter:
         if export_png:
             png = engine.save_png(base + ".png", dpi=png_dpi)
             result["png"] = png
+
+        # Sempre inclui sequences no resultado para uso por outros exporters (ex: MusicXML)
+        result["sequences"] = sequences
 
         return result
 
